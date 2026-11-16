@@ -1,146 +1,53 @@
 # -*- coding: utf-8 -*-
-"""
-ЧЕКУШКА 2D — платформер
-Картинка игрока: player.png (положи рядом с этим файлом)
-"""
-
+"""ЧЕКУШКА 2D — платформер на Tkinter. Никаких pip-зависимостей."""
 import tkinter as tk
 from tkinter import messagebox
-import math
-import random
-import time
-import json
-import os
-import sys
+import math, random, time, json, os, urllib.request, urllib.error, subprocess, sys
 
-# ==================== НАСТРОЙКИ ====================
+APP_VERSION = "2.1.1"
+REPO_OWNER = "Dimnost"
+REPO_NAME = "voidu-s-war"
+BRANCH = "main"
+RAW_BASE = f"https://raw.githubusercontent.com/{REPO_OWNER}/{REPO_NAME}/{BRANCH}"
+VERSION_URL = RAW_BASE + "/version.json"
+GAME_URL = RAW_BASE + "/game/chekushka_adventure%20v2.py"
 
 W, H = 1100, 650
-GRAVITY = 1850
-MAX_SPEED = 430
-JUMP_FORCE = -780
-PLAYER_W = 54
-PLAYER_H = 54
-
-APP_VERSION = "3.0.0"
+R = 25
+GRAVITY = 1750
+MAX_SPEED = 410
 SAVE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chekushka_save.json")
-PLAYER_IMAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player.png")
 
-# ==================== УРОВНИ ====================
+SKINS = [
+    {"name":"Классика", "body":"#ef5148", "dark":"#a92e35", "shine":"#ff9b83", "price":0},
+    {"name":"Золотой", "body":"#f5bd35", "dark":"#ad7415", "shine":"#fff0a0", "price":12},
+    {"name":"Космос", "body":"#7659d9", "dark":"#392a83", "shine":"#c5aaff", "price":25},
+    {"name":"Мята", "body":"#40cda4", "dark":"#16785f", "shine":"#b4ffe7", "price":40},
+    {"name":"Огонёк", "body":"#ff7a28", "dark":"#a83c18", "shine":"#ffd08b", "price":55},
+    {"name":"Лёд", "body":"#6bc9f5", "dark":"#2878ad", "shine":"#e0f8ff", "price":70},
+]
 
 LEVELS = [
-    {
-        "name": "Зелёные холмы",
-        "subtitle": "Разомнись",
-        "sky": "#7ec8ff",
-        "far": "#a8d4a0",
-        "hill": "#6bb87a",
-        "ground": "#8b5a3c",
-        "grass": "#5dcf66",
-        "end": 2800,
-        "terrain": [(0,520),(400,520),(650,470),(950,470),(1200,520),(1550,520),(1800,460),(2150,460),(2400,510),(2800,510)],
-        "platforms": [(750,400,170),(1350,410,160),(1900,370,180),(2450,390,160)],
-        "crates": [1050,1600,2200],
-        "coins": [350,700,1100,1450,1750,2050,2350,2600],
-        "spikes": [(1250,),(2100,)],
-        "enemies": [1500,2300]
-    },
-    {
-        "name": "Пустынный забег",
-        "subtitle": "Жарко и опасно",
-        "sky": "#ffc48a",
-        "far": "#e8c090",
-        "hill": "#d4a06a",
-        "ground": "#a86b3c",
-        "grass": "#e8b86a",
-        "end": 3100,
-        "terrain": [(0,510),(500,510),(750,455),(1050,455),(1350,520),(1700,520),(1950,460),(2300,460),(2600,515),(3100,515)],
-        "platforms": [(600,370,160),(1150,365,180),(1750,370,170),(2350,355,190),(2800,350,150)],
-        "crates": [950,1500,2100,2650],
-        "coins": [300,650,900,1250,1600,1900,2200,2500,2850],
-        "spikes": [(1300,),(2050,),(2750,)],
-        "enemies": [1100,1850,2550]
-    },
-    {
-        "name": "Ледяные пещеры",
-        "subtitle": "Скользко",
-        "sky": "#9ad0f0",
-        "far": "#b8e0f0",
-        "hill": "#7ab8d0",
-        "ground": "#5a8090",
-        "grass": "#c0f0ff",
-        "end": 3300,
-        "terrain": [(0,515),(450,515),(700,460),(1000,460),(1300,520),(1650,520),(1900,455),(2250,455),(2550,515),(2900,515),(3300,470)],
-        "platforms": [(750,370,170),(1250,385,170),(1800,355,180),(2400,365,170),(2950,340,180)],
-        "crates": [1050,1600,2150,2700],
-        "coins": [280,600,950,1200,1500,1750,2050,2350,2650,3000],
-        "spikes": [(1200,),(2300,),(2850,)],
-        "enemies": [950,1950,2600]
-    },
-    {
-        "name": "Ночная долина",
-        "subtitle": "Темнеет",
-        "sky": "#1e2a50",
-        "far": "#2e3e68",
-        "hill": "#24355a",
-        "ground": "#4a3c55",
-        "grass": "#60b070",
-        "end": 3500,
-        "terrain": [(0,515),(480,515),(720,465),(1050,465),(1350,520),(1700,520),(1950,455),(2300,455),(2600,520),(2950,520),(3200,460),(3500,460)],
-        "platforms": [(580,375,180),(1150,360,180),(1750,350,190),(2350,355,180),(2900,340,190),(3250,330,150)],
-        "crates": [950,1550,2150,2700,3150],
-        "coins": [260,600,850,1200,1550,1850,2150,2500,2800,3050,3350],
-        "spikes": [(1280,),(2450,),(3000,)],
-        "enemies": [1050,1900,2650,3200]
-    },
-    {
-        "name": "Вулканические земли",
-        "subtitle": "Горячо!",
-        "sky": "#3a1e1e",
-        "far": "#5a3030",
-        "hill": "#4a2828",
-        "ground": "#6b3a2a",
-        "grass": "#c06030",
-        "end": 3600,
-        "terrain": [(0,520),(420,520),(680,470),(1000,470),(1300,525),(1650,525),(1900,465),(2250,465),(2550,520),(2900,520),(3200,470),(3600,470)],
-        "platforms": [(550,380,170),(1100,370,180),(1700,360,180),(2300,355,190),(2850,345,170),(3300,335,160)],
-        "crates": [900,1500,2050,2600,3100],
-        "coins": [250,580,820,1150,1480,1800,2100,2450,2750,3050,3400],
-        "spikes": [(1250,),(2400,),(2950,)],
-        "enemies": [1000,1850,2550,3250]
-    },
-    {
-        "name": "Небесные острова",
-        "subtitle": "Высоко и красиво",
-        "sky": "#a0d8ff",
-        "far": "#c0e8ff",
-        "hill": "#90c8e0",
-        "ground": "#7a9ab0",
-        "grass": "#b0e0a0",
-        "end": 3800,
-        "terrain": [(0,530),(500,530),(800,480),(1200,480),(1500,535),(1900,535),(2200,475),(2600,475),(2900,530),(3300,530),(3600,480),(3800,480)],
-        "platforms": [(650,390,180),(1300,380,190),(2000,370,200),(2700,360,190),(3400,350,180)],
-        "crates": [1000,1650,2300,3000,3550],
-        "coins": [300,700,1100,1450,1800,2150,2500,2850,3200,3550],
-        "spikes": [(1400,),(2500,),(3200,)],
-        "enemies": [1150,2050,2800,3500]
-    },
-    {
-        "name": "Финал",
-        "subtitle": "Последний рывок",
-        "sky": "#2a1a40",
-        "far": "#3a2a55",
-        "hill": "#2e2248",
-        "ground": "#4a3555",
-        "grass": "#80c070",
-        "end": 4000,
-        "terrain": [(0,520),(450,520),(700,465),(1050,465),(1400,525),(1750,525),(2000,460),(2400,460),(2750,520),(3100,520),(3400,465),(3700,465),(4000,510)],
-        "platforms": [(600,380,180),(1200,370,190),(1850,355,200),(2500,350,190),(3050,340,180),(3600,330,170)],
-        "crates": [950,1600,2200,2800,3300,3750],
-        "coins": [280,650,950,1300,1650,1950,2300,2650,2950,3250,3550,3850],
-        "spikes": [(1350,),(2450,),(3150,),(3700,)],
-        "enemies": [1100,1950,2700,3400,3850]
-    },
+    {"name":"Зелёные холмы", "subtitle":"Разомнись и собери добычу", "sky":"#76d5ff", "far":"#9bd9a3", "hill":"#58b97a", "ground":"#805536", "grass":"#54c65c",
+     "end":2600, "terrain":[(0,510),(420,510),(620,465),(900,465),(1120,510),(1450,510),(1650,455),(1940,455),(2150,505),(2600,505)],
+     "platforms":[(720,390,180),(1260,405,175),(1770,365,190),(2240,390,180)],
+     "crates":[980,1510,2070], "bottles":[520,810,1320,1810,2320], "coins":[330,700,1080,1190,1580,1900,2200,2470],
+     "spikes":[(1100,0),(1960,0)], "enemies":[1450,2150]},
+    {"name":"Пустынный забег", "subtitle":"Жарко! Не наступай на шипы", "sky":"#ffbd83", "far":"#e8bb83", "hill":"#c78b54", "ground":"#9a6037", "grass":"#e4b35b",
+     "end":3000, "terrain":[(0,500),(500,500),(720,450),(1000,450),(1250,515),(1580,515),(1800,460),(2120,460),(2370,510),(2700,510),(3000,470)],
+     "platforms":[(580,365,170),(1080,365,190),(1660,370,180),(2220,360,200),(2670,345,170)],
+     "crates":[900,1430,2040,2530], "bottles":[370,650,1140,1720,2280,2780], "coins":[260,600,800,1190,1530,1860,2160,2450,2850],
+     "spikes":[(1240,0),(2110,0),(2700,0)], "enemies":[980,1830,2580]},
+    {"name":"Ледяные пещеры", "subtitle":"Скользкие дорожки и холодные ловушки", "sky":"#8cc9ef", "far":"#b4dff0", "hill":"#73b6d0", "ground":"#547b91", "grass":"#b7f2ff",
+     "end":3200, "terrain":[(0,510),(430,510),(650,455),(900,455),(1130,515),(1480,515),(1700,450),(2020,450),(2260,510),(2600,510),(2820,455),(3200,455)],
+     "platforms":[(700,360,180),(1200,390,180),(1740,350,190),(2300,370,180),(2800,340,190)],
+     "crates":[980,1540,2110,2650], "bottles":[340,770,1260,1800,2360,2880], "coins":[250,620,890,1150,1450,1690,2010,2250,2540,2950],
+     "spikes":[(1120,0),(2220,0),(2740,0)], "enemies":[890,1910,2570]},
+    {"name":"Ночная долина", "subtitle":"Последний рывок к финишу!", "sky":"#202d5c", "far":"#354878", "hill":"#283d68", "ground":"#51415c", "grass":"#68b77d",
+     "end":3500, "terrain":[(0,510),(480,510),(700,460),(1000,460),(1240,510),(1600,510),(1810,450),(2150,450),(2390,515),(2750,515),(2970,455),(3500,455)],
+     "platforms":[(560,365,190),(1070,360,190),(1650,355,200),(2220,360,190),(2820,345,200),(3200,330,170)],
+     "crates":[900,1450,2070,2650,3100], "bottles":[350,640,1120,1710,2280,2880,3290], "coins":[250,590,830,1170,1530,1870,2180,2490,2790,3020,3370],
+     "spikes":[(1220,0),(2380,0),(2940,0)], "enemies":[990,1830,2700,3190]},
 ]
 
 def clamp(v, a, b):
@@ -154,149 +61,114 @@ def terrain_y(level, x):
             t = (x - x1) / (x2 - x1)
             t = t * t * (3 - 2 * t)
             return y1 + (y2 - y1) * t
-    return 520
-
-# ==================== ИГРА ====================
+    return 500
 
 class Game:
     def __init__(self, root):
         self.root = root
-        root.title("ЧЕКУШКА 2D")
+        root.title("ЧЕКУШКА 2D — приключение")
         root.resizable(False, False)
-        root.configure(bg="#0d1520")
-
-        self.c = tk.Canvas(root, width=W, height=H, highlightthickness=0, bg="#0d1520")
+        root.configure(bg="#101d32")
+        self.c = tk.Canvas(root, width=W, height=H, highlightthickness=0, bg="#101d32")
         self.c.pack()
-
         self.keys = set()
         self.screen = "menu"
         self.last = time.perf_counter()
         self.level_index = 0
+        self.skin_index = 0
         self.total_coins = 0
         self.unlocked = 1
+        self.load_save()
+        self.owned_skins = getattr(self, "owned_skins", {0})
         self.particles = []
         self.buttons = []
         self.anim_t = 0.0
-        self.player_img = None
-        self.player_photo = None
 
-        self.load_player_image()
-        self.load_save()
-
-        root.bind("<KeyPress>", self.on_key_down)
-        root.bind("<KeyRelease>", self.on_key_up)
-        root.bind("<Escape>", lambda e: self.toggle_pause())
-        root.bind("<Return>", lambda e: self.on_enter())
+        root.bind("<KeyPress>", self.keydown)
+        root.bind("<KeyRelease>", self.keyup)
+        root.bind("<Escape>", lambda e: self.pause())
+        root.bind("<Return>", lambda e: self.enter())
         root.bind("<space>", lambda e: self.jump())
-        root.bind("p", lambda e: self.toggle_pause())
-        root.bind("P", lambda e: self.toggle_pause())
-        root.bind("r", lambda e: self.start_level(self.level_index) if self.screen == "play" else None)
-
+        root.bind("p", lambda e: self.pause())
+        root.bind("P", lambda e: self.pause())
+        root.bind("r", lambda e: self.start_level(self.level_index))
         self.loop()
-
-    def load_player_image(self):
-        try:
-            from PIL import Image, ImageTk
-            # Если есть Pillow — лучше качество
-            img = Image.open(PLAYER_IMAGE).convert("RGBA")
-            img = img.resize((PLAYER_W, PLAYER_H), Image.LANCZOS)
-            self.player_photo = ImageTk.PhotoImage(img)
-            self.player_img = self.player_photo
-        except Exception:
-            try:
-                # Обычный PhotoImage (работает без Pillow)
-                self.player_photo = tk.PhotoImage(file=PLAYER_IMAGE)
-                # Простое уменьшение если слишком большое
-                w = self.player_photo.width()
-                h = self.player_photo.height()
-                if w > PLAYER_W * 2 or h > PLAYER_H * 2:
-                    factor = max(w // PLAYER_W, h // PLAYER_H, 1)
-                    self.player_photo = self.player_photo.subsample(factor, factor)
-                self.player_img = self.player_photo
-            except Exception:
-                self.player_img = None
-                print("Не найден player.png — будет использоваться запасной персонаж")
 
     def load_save(self):
         try:
-            with open(SAVE_FILE, encoding="utf-8") as f:
-                data = json.load(f)
-            self.total_coins = int(data.get("coins", 0))
-            self.unlocked = clamp(int(data.get("unlocked", 1)), 1, len(LEVELS))
+            d = json.load(open(SAVE_FILE, encoding="utf-8"))
+            self.total_coins = int(d.get("coins", 0))
+            self.unlocked = clamp(int(d.get("unlocked", 1)), 1, len(LEVELS))
+            self.skin_index = clamp(int(d.get("skin", 0)), 0, len(SKINS) - 1)
+            self.owned_skins = set(d.get("owned_skins", [0]))
         except Exception:
-            pass
+            self.owned_skins = {0}
 
     def save(self):
         try:
-            with open(SAVE_FILE, "w", encoding="utf-8") as f:
-                json.dump({
-                    "coins": self.total_coins,
-                    "unlocked": self.unlocked
-                }, f)
+            json.dump({
+                "coins": self.total_coins,
+                "unlocked": self.unlocked,
+                "skin": self.skin_index,
+                "owned_skins": sorted(getattr(self, "owned_skins", {0}))
+            }, open(SAVE_FILE, "w", encoding="utf-8"))
         except Exception:
             pass
 
-    def on_key_down(self, e):
+    def keydown(self, e):
         k = e.keysym.lower()
         self.keys.add(k)
         if k in ("space", "w", "up"):
             self.jump()
         if k == "escape":
-            self.toggle_pause()
+            self.pause()
 
-    def on_key_up(self, e):
+    def keyup(self, e):
         self.keys.discard(e.keysym.lower())
 
-    def on_enter(self):
+    def enter(self):
         if self.screen == "menu":
             self.screen = "levels"
         elif self.screen == "levels":
             self.start_level(self.level_index)
+        elif self.screen == "skins":
+            self.screen = "menu"
         elif self.screen in ("win", "dead"):
             self.start_level(self.level_index)
         elif self.screen == "pause":
             self.screen = "play"
 
-    def toggle_pause(self):
+    def jump(self):
+        if self.screen == "play" and self.on_ground:
+            self.vy = -720
+            self.on_ground = False
+            self.burst(self.x, self.y + R, "#e9ffff", 8)
+
+    def pause(self):
         if self.screen == "play":
             self.screen = "pause"
         elif self.screen == "pause":
             self.screen = "play"
 
-    def jump(self):
-        if self.screen == "play" and self.on_ground:
-            self.vy = JUMP_FORCE
-            self.on_ground = False
-            self.burst(self.x, self.y + PLAYER_H // 2, "#d0f0ff", 9)
-
-    def start_level(self, idx):
-        self.level_index = clamp(idx, 0, len(LEVELS) - 1)
+    def start_level(self, i):
+        self.level_index = clamp(i, 0, len(LEVELS) - 1)
         self.level = LEVELS[self.level_index]
-        self.x = 100.0
-        self.y = terrain_y(self.level, self.x) - PLAYER_H
-        self.vx = 0.0
-        self.vy = 0.0
+        self.x = 90.0
+        self.y = terrain_y(self.level, self.x) - R
+        self.vx = self.vy = 0.0
         self.on_ground = True
         self.camera = 0.0
-        self.got_coins = set()
-        self.dead_enemies = set()
+        self.got_b = set()
+        self.got_c = set()
+        self.dead_enemy = set()
         self.particles = []
         self.screen = "play"
 
     def burst(self, x, y, color, n=10):
         for _ in range(n):
             a = random.random() * math.tau
-            s = random.uniform(80, 260)
-            self.particles.append([
-                x, y,
-                math.cos(a) * s,
-                math.sin(a) * s,
-                0.55,
-                color,
-                random.uniform(2.8, 5.5)
-            ])
-
-    # ==================== ФИЗИКА ====================
+            s = random.uniform(70, 240)
+            self.particles.append([x, y, math.cos(a) * s, math.sin(a) * s, 0.6, color, random.uniform(2.5, 5.5)])
 
     def update(self, dt):
         self.anim_t += dt
@@ -304,346 +176,502 @@ class Game:
             return
 
         l = self.level
-        left = "a" in self.keys or "left" in self.keys
-        right = "d" in self.keys or "right" in self.keys
-        direction = int(right) - int(left)
+        left = ("a" in self.keys or "left" in self.keys)
+        right = ("d" in self.keys or "right" in self.keys)
+        d = int(right) - int(left)
 
-        if direction:
-            self.vx += direction * 1900 * dt
+        if d:
+            self.vx += d * 1750 * dt
         else:
-            self.vx *= max(0.0, 1.0 - 7.0 * dt)
+            self.vx *= max(0.0, 1.0 - 6.0 * dt)
 
         self.vx = clamp(self.vx, -MAX_SPEED, MAX_SPEED)
 
-        old_y = self.y
-        self.x = clamp(self.x + self.vx * dt, PLAYER_W // 2, l["end"] - PLAYER_W // 2)
+        oldy = self.y
+        self.x = clamp(self.x + self.vx * dt, R, l["end"] - R)
         self.vy += GRAVITY * dt
         self.y += self.vy * dt
         self.on_ground = False
 
         # Земля
-        ground = terrain_y(l, self.x) - PLAYER_H
-        if self.y >= ground and self.vy >= 0:
-            self.y = ground
+        gy = terrain_y(l, self.x) - R
+        if self.y >= gy and self.vy >= 0:
+            self.y = gy
             self.vy = 0
             self.on_ground = True
 
         # Платформы
         for px, py, pw in l["platforms"]:
-            if (px - PLAYER_W // 2 < self.x < px + pw + PLAYER_W // 2 and
-                old_y + PLAYER_H <= py + 12 and
-                self.y + PLAYER_H >= py and
+            if (px - R < self.x < px + pw + R and
+                oldy + R <= py + 10 and
+                self.y + R >= py and
                 self.vy >= 0):
-                self.y = py - PLAYER_H
+                self.y = py - R
                 self.vy = 0
                 self.on_ground = True
 
-        # Коробки (исправленная физика)
+        # === ИСПРАВЛЕННЫЕ КОРОБКИ ===
         for cx in l["crates"]:
-            crate_w = 50
+            crate_w = 48
             crate_h = 50
-            crate_center = cx + crate_w / 2
-            base = terrain_y(l, cx + 25)
+            crate_x = cx + crate_w / 2
+            base = terrain_y(l, cx + 22)
             top = base - crate_h
 
-            if abs(self.x - crate_center) < PLAYER_W // 2 + crate_w / 2 + 3:
+            # Горизонтальное пересечение
+            if abs(self.x - crate_x) < R + crate_w / 2 + 2:
                 # Стоим сверху
-                if (old_y + PLAYER_H <= top + 16 and
-                    self.y + PLAYER_H >= top and
+                if (oldy + R <= top + 14 and
+                    self.y + R >= top and
                     self.vy >= 0):
-                    self.y = top - PLAYER_H
+                    self.y = top - R
                     self.vy = 0
                     self.on_ground = True
                 # Упираемся сбоку
-                elif self.y + PLAYER_H > top + 10 and self.y < base:
-                    if self.x < crate_center:
-                        self.x = crate_center - (crate_w / 2 + PLAYER_W // 2)
+                elif self.y + R > top + 8 and self.y < base:
+                    if self.x < crate_x:
+                        self.x = crate_x - (crate_w / 2 + R)
                         if self.vx > 0:
                             self.vx = 0
                     else:
-                        self.x = crate_center + (crate_w / 2 + PLAYER_W // 2)
+                        self.x = crate_x + (crate_w / 2 + R)
                         if self.vx < 0:
                             self.vx = 0
 
         # Шипы
-        for sx, in l["spikes"]:
+        for sx, _ in l["spikes"]:
             sy = terrain_y(l, sx)
-            if abs(self.x - (sx + 30)) < PLAYER_W // 2 + 26 and self.y + PLAYER_H > sy - 30:
+            if abs(self.x - (sx + 30)) < R + 24 and self.y + R > sy - 28 and self.y < sy + 5:
                 self.screen = "dead"
 
         # Враги
         for i, ex in enumerate(l["enemies"]):
-            if i in self.dead_enemies:
+            if i in self.dead_enemy:
                 continue
-            ey = terrain_y(l, ex) - 20
-            if abs(self.x - ex) < PLAYER_W // 2 + 20 and abs(self.y + PLAYER_H // 2 - ey) < PLAYER_H // 2 + 20:
-                if self.vy > 100 and old_y + PLAYER_H < ey + 10:
-                    self.dead_enemies.add(i)
-                    self.vy = -500
-                    self.burst(ex, ey, "#b0f0a0", 14)
+            ey = terrain_y(l, ex) - 18
+            if abs(self.x - ex) < R + 18 and abs(self.y - ey) < R + 18:
+                if self.vy > 80 and oldy + R < ey + 8:
+                    self.dead_enemy.add(i)
+                    self.vy = -480
+                    self.burst(ex, ey, "#b8f4a5", 14)
                 else:
                     self.screen = "dead"
 
+        # Бутылки
+        for i, bx in enumerate(l["bottles"]):
+            by = terrain_y(l, bx) - 56
+            if i not in self.got_b and math.hypot(self.x - bx, self.y - by) < 48:
+                self.got_b.add(i)
+                self.burst(bx, by, "#ffdf8c", 16)
+
         # Монеты
         for i, cx in enumerate(l["coins"]):
-            cy = terrain_y(l, cx) - 85 - (10 if i % 2 else 0)
-            if i not in self.got_coins and math.hypot(self.x - cx, self.y + PLAYER_H // 2 - cy) < 42:
-                self.got_coins.add(i)
+            cy = terrain_y(l, cx) - 90 - (12 if i % 2 else 0)
+            if i not in self.got_c and math.hypot(self.x - cx, self.y - cy) < 44:
+                self.got_c.add(i)
                 self.total_coins += 1
-                self.burst(cx, cy, "#ffd040", 12)
+                self.burst(cx, cy, "#ffdf48", 14)
                 self.save()
 
-        if self.y > H + 200:
+        if self.y > H + 160:
             self.screen = "dead"
 
-        if self.x > l["end"] - 100:
+        if self.x > l["end"] - 90:
             self.screen = "win"
             self.unlocked = max(self.unlocked, min(len(LEVELS), self.level_index + 2))
             self.save()
 
-        self.camera = clamp(self.x - W * 0.38, 0, l["end"] - W)
+        self.camera = clamp(self.x - W * 0.36, 0, l["end"] - W)
 
         # Частицы
         for p in self.particles[:]:
             p[0] += p[2] * dt
             p[1] += p[3] * dt
-            p[3] += 500 * dt
+            p[3] += 480 * dt
             p[4] -= dt
             if p[4] <= 0:
                 self.particles.remove(p)
 
     # ==================== ОТРИСОВКА ====================
 
-    def draw_rect(self, x1, y1, x2, y2, fill, outline="", width=1):
+    def rect(self, x1, y1, x2, y2, fill, outline="", width=1):
         self.c.create_rectangle(x1, y1, x2, y2, fill=fill, outline=outline, width=width)
 
-    def draw_text(self, x, y, text, size, color, bold=True, **kwargs):
-        self.c.create_text(x, y, text=text, fill=color,
-                           font=("Segoe UI", size, "bold" if bold else "normal"), **kwargs)
+    def txt(self, x, y, s, size, color, bold=True, **kw):
+        self.c.create_text(x, y, text=s, fill=color,
+                           font=("Segoe UI", size, "bold" if bold else "normal"), **kw)
 
-    def button(self, x, y, w, h, label, command, sub=None, disabled=False):
-        fill = "#1a2e42" if disabled else "#254a68"
-        outline = "#4a6a82" if disabled else "#7ec8e0"
-        self.draw_rect(x - w/2, y - h/2, x + w/2, y + h/2, fill, outline, 2)
+    def button(self, x, y, w, h, label, cmd, sub=None, disabled=False):
+        fill = "#1e334d" if disabled else "#2a5570"
+        outline = "#5a7a94" if disabled else "#8bd8e8"
+        self.c.create_rectangle(x - w/2, y - h/2, x + w/2, y + h/2,
+                                fill=fill, outline=outline, width=2)
+        # Лёгкий блик сверху
         if not disabled:
-            self.draw_rect(x - w/2 + 2, y - h/2 + 2, x + w/2 - 2, y - h/2 + 7, "#3a6a88")
-        self.draw_text(x, y - 3 if sub else y, label, 15, "#8aa8bc" if disabled else "#ffffff")
+            self.c.create_rectangle(x - w/2 + 2, y - h/2 + 2, x + w/2 - 2, y - h/2 + 8,
+                                    fill="#3a6a88", outline="")
+        self.txt(x, y - 4 if sub else y, label, 16, "#8aa0b4" if disabled else "#ffffff")
         if sub:
-            self.draw_text(x, y + 15, sub, 10, "#a8c8d8", False)
-        self.buttons.append((x - w/2, y - h/2, x + w/2, y + h/2, command, disabled))
+            self.txt(x, y + 16, sub, 10, "#b8d0dc", False)
+        self.buttons.append((x - w/2, y - h/2, x + w/2, y + h/2, cmd, disabled))
 
-    def on_click(self, e):
-        for x1, y1, x2, y2, cmd, disabled in reversed(self.buttons):
-            if x1 <= e.x <= x2 and y1 <= e.y <= y2 and not disabled:
+    def click(self, e):
+        for x1, y1, x2, y2, cmd, dis in reversed(self.buttons):
+            if x1 <= e.x <= x2 and y1 <= e.y <= y2 and not dis:
                 cmd()
                 return
 
-    def draw_sky(self):
-        l = self.level
+    def sky(self):
+        l = self.level if hasattr(self, "level") else LEVELS[0]
         self.c.configure(bg=l["sky"])
 
         # Облака
-        for x, y, s in [(120, 90, 1.0), (480, 140, 0.9), (850, 85, 1.1),
-                        (1250, 125, 0.95), (1900, 80, 1.05), (2550, 130, 0.9), (3200, 95, 1.0)]:
-            sx = (x - self.camera * 0.15) % (W + 220) - 110
-            size = 65 * s
-            self.c.create_oval(sx, y, sx + size, y + size * 0.42, fill="#f5fcff", outline="")
-            self.c.create_oval(sx + size * 0.3, y - size * 0.22, sx + size * 1.1, y + size * 0.42, fill="#f5fcff", outline="")
-            self.c.create_oval(sx + size * 0.7, y, sx + size * 1.5, y + size * 0.42, fill="#f5fcff", outline="")
+        for x, y, scale in [(140, 95, 1.0), (490, 150, 0.85), (880, 90, 1.1),
+                            (1200, 130, 0.9), (1850, 85, 1.0), (2500, 130, 0.95), (3200, 90, 1.05)]:
+            sx = (x - self.camera * 0.18) % (W + 200) - 100
+            s = 70 * scale
+            self.c.create_oval(sx, y, sx + s, y + s * 0.45, fill="#f7fdff", outline="")
+            self.c.create_oval(sx + s*0.35, y - s*0.25, sx + s*1.15, y + s*0.45, fill="#f7fdff", outline="")
+            self.c.create_oval(sx + s*0.75, y, sx + s*1.55, y + s*0.45, fill="#f7fdff", outline="")
 
-        # Холмы
-        for i in range(-1, 10):
-            x = i * 290 - (self.camera * 0.32) % 290
-            self.c.create_oval(x, 310, x + 400, 590, fill=l["far"], outline="")
-            self.c.create_oval(x + 110, 350, x + 480, 600, fill=l["hill"], outline="")
+        # Дальние холмы
+        for i in range(-1, 9):
+            x = i * 280 - (self.camera * 0.35) % 280
+            self.c.create_oval(x, 320, x + 380, 580, fill=l["far"], outline="")
+            self.c.create_oval(x + 100, 360, x + 460, 590, fill=l["hill"], outline="")
 
-    def draw_world(self):
+        # Солнце / луна
+        if "Ночная" in l["name"]:
+            self.c.create_oval(840, 55, 915, 130, fill="#e8f0ff", outline="")
+            self.c.create_oval(855, 70, 900, 115, fill="#d0e0f8", outline="")
+        else:
+            self.c.create_oval(840, 55, 915, 130, fill="#fff0a0", outline="")
+            self.c.create_oval(855, 70, 900, 115, fill="#ffe070", outline="")
+
+    def world(self):
         l = self.level
         cam = self.camera
 
         # Земля
-        pts = []
-        for x in range(max(0, int(cam) - 40), min(l["end"], int(cam) + W + 50), 10):
-            pts.extend((x - cam, terrain_y(l, x)))
-        pts.extend((W + 50, H + 60, -50, H + 60))
-        self.c.create_polygon(*pts, fill=l["ground"], outline="")
+        points = []
+        for x in range(max(0, int(cam) - 30), min(l["end"], int(cam) + W + 40), 8):
+            points.extend((x - cam, terrain_y(l, x)))
+        points.extend((W + 40, H + 50, -40, H + 50))
+        self.c.create_polygon(*points, fill=l["ground"], outline="")
 
         # Трава
         edge = []
-        for x in range(max(0, int(cam) - 40), min(l["end"], int(cam) + W + 50), 10):
+        for x in range(max(0, int(cam) - 30), min(l["end"], int(cam) + W + 40), 8):
             edge.extend((x - cam, terrain_y(l, x)))
-        self.c.create_line(*edge, fill=l["grass"], width=13, smooth=True)
-        self.c.create_line(*edge, fill="#c8f090", width=4, smooth=True)
+        self.c.create_line(*edge, fill=l["grass"], width=14, smooth=True)
+        self.c.create_line(*edge, fill="#c4f28b", width=4, smooth=True)
 
         # Платформы
         for px, py, pw in l["platforms"]:
             sx = px - cam
-            self.draw_rect(sx, py, sx + pw, py + 20, "#8b5e3c", "#5a3a28", 2)
-            self.draw_rect(sx, py, sx + pw, py + 6, "#d4a06a")
+            self.rect(sx, py, sx + pw, py + 22, "#8b5e3c", "#5a3a28", 2)
+            self.rect(sx, py, sx + pw, py + 7, "#d4a06a")
+            for xx in range(int(sx + 14), int(sx + pw - 10), 28):
+                self.rect(xx, py + 9, xx + 16, py + 17, "#a87045")
 
-        # Коробки
+        # Коробки (красивее)
         for cx in l["crates"]:
             sx = cx - cam
-            gy = terrain_y(l, cx + 25)
-            self.c.create_oval(sx + 5, gy - 3, sx + 55, gy + 7, fill="#2a1f18", outline="")
-            self.draw_rect(sx, gy - 50, sx + 50, gy, "#c48a4a", "#6b452f", 3)
-            self.c.create_line(sx + 5, gy - 45, sx + 45, gy - 5, fill="#e8c08a", width=3)
-            self.c.create_line(sx + 45, gy - 45, sx + 5, gy - 5, fill="#e8c08a", width=3)
+            gy = terrain_y(l, cx + 22)
+            # Тень
+            self.c.create_oval(sx + 4, gy - 4, sx + 52, gy + 6, fill="#2a1f18", outline="")
+            # Корпус
+            self.rect(sx, gy - 50, sx + 48, gy, "#c48a4a", "#6b452f", 3)
+            # Доски
+            self.c.create_line(sx + 4, gy - 45, sx + 44, gy - 5, fill="#e8c08a", width=3)
+            self.c.create_line(sx + 44, gy - 45, sx + 4, gy - 5, fill="#e8c08a", width=3)
+            # Блик
+            self.rect(sx + 3, gy - 47, sx + 12, gy - 40, "#f0d0a0")
 
         # Шипы
-        for sx, in l["spikes"]:
+        for sx, _ in l["spikes"]:
             x = sx - cam
             y = terrain_y(l, sx)
-            self.c.create_polygon(x, y, x + 30, y - 32, x + 60, y, fill="#dce6ed", outline="#5a6e80", width=2)
+            self.c.create_polygon(x, y, x + 30, y - 34, x + 60, y,
+                                  fill="#dce6ed", outline="#5a6e80", width=2)
+            self.c.create_line(x + 30, y - 28, x + 30, y - 4, fill="#ffffff", width=3)
 
         # Враги
         for i, ex in enumerate(l["enemies"]):
-            if i in self.dead_enemies:
+            if i in self.dead_enemy:
                 continue
             x = ex - cam
-            y = terrain_y(l, ex) - 18
-            bounce = math.sin(self.anim_t * 5.5 + i) * 2.5
-            self.c.create_oval(x - 20, y - 18 + bounce, x + 20, y + 20 + bounce, fill="#5b8f45", outline="#2d4a28", width=3)
+            y = terrain_y(l, ex) - 17
+            bounce = math.sin(self.anim_t * 6 + i) * 2
+            self.c.create_oval(x - 19, y - 18 + bounce, x + 19, y + 19 + bounce,
+                               fill="#5b8f45", outline="#2d4a28", width=3)
             self.c.create_oval(x - 11, y - 8 + bounce, x - 3, y + 2 + bounce, fill="white", outline="")
             self.c.create_oval(x + 3, y - 8 + bounce, x + 11, y + 2 + bounce, fill="white", outline="")
-            self.c.create_oval(x - 8, y - 5 + bounce, x - 4, y, fill="#1a2a18", outline="")
-            self.c.create_oval(x + 5, y - 5 + bounce, x + 9, y, fill="#1a2a18", outline="")
+            self.c.create_oval(x - 8, y - 5 + bounce, x - 4, y + 1 + bounce, fill="#1a2a18", outline="")
+            self.c.create_oval(x + 5, y - 5 + bounce, x + 9, y + 1 + bounce, fill="#1a2a18", outline="")
+
+        # Бутылки
+        for i, bx in enumerate(l["bottles"]):
+            if i in self.got_b:
+                continue
+            x = bx - cam
+            y = terrain_y(l, bx) - 58
+            self.c.create_oval(x - 15, y + 46, x + 15, y + 54, fill="#2a4a3a", outline="")
+            self.rect(x - 10, y + 12, x + 10, y + 48, "#d0f0ea", "#ffffff", 2)
+            self.rect(x - 6, y + 2, x + 6, y + 16, "#b8e0e0", "#ffffff")
+            self.rect(x - 6, y - 3, x + 6, y + 4, "#d04555")
+            self.rect(x - 7, y + 24, x + 7, y + 36, "#e85a5a")
+            self.c.create_line(x - 5, y + 16, x - 5, y + 44, fill="#ffffff", width=2)
 
         # Монеты
         for i, cx in enumerate(l["coins"]):
-            if i in self.got_coins:
+            if i in self.got_c:
                 continue
             x = cx - cam
-            y = terrain_y(l, cx) - 85 - (10 if i % 2 else 0)
-            pulse = 1.0 + math.sin(self.anim_t * 5 + i) * 0.1
-            r = 12 * pulse
+            y = terrain_y(l, cx) - 90 - (12 if i % 2 else 0)
+            pulse = 1.0 + math.sin(self.anim_t * 5 + i) * 0.08
+            r = 13 * pulse
             self.c.create_oval(x - r, y - r, x + r, y + r, fill="#d99416", outline="#fff1a0", width=2)
-            self.c.create_oval(x - r * 0.55, y - r * 0.55, x + r * 0.55, y + r * 0.55, fill="#ffdf4a", outline="")
+            self.c.create_oval(x - r*0.6, y - r*0.6, x + r*0.6, y + r*0.6, fill="#ffdf4a", outline="")
 
-        # Флаг
-        fx = l["end"] - 80 - cam
-        fy = terrain_y(l, l["end"] - 80)
-        self.draw_rect(fx - 3, fy - 130, fx + 3, fy, "#4a3a2a")
-        wave = math.sin(self.anim_t * 4) * 5
-        self.c.create_polygon(fx, fy - 130, fx + 70 + wave, fy - 110, fx, fy - 88, fill="#ffdc58", outline="#fff3b0", width=2)
+        # Флаг финиша
+        fx = l["end"] - 75 - cam
+        fy = terrain_y(l, l["end"] - 75)
+        self.rect(fx - 3, fy - 130, fx + 3, fy, "#4a3a2a")
+        wave = math.sin(self.anim_t * 4) * 4
+        self.c.create_polygon(fx, fy - 130, fx + 68 + wave, fy - 112, fx, fy - 90,
+                              fill="#ffdc58", outline="#fff3b0", width=2)
 
-    def draw_player(self):
+    def player(self):
         x = self.x - self.camera
         y = self.y
+        s = SKINS[self.skin_index]
 
-        # Тень
-        gy = terrain_y(self.level, self.x)
-        self.c.create_oval(x - 20, gy - 4, x + 20, gy + 6, fill="#2a3a30", outline="")
+        # Тень под персонажем
+        shadow_y = terrain_y(self.level, self.x)
+        self.c.create_oval(x - 22, shadow_y - 5, x + 22, shadow_y + 6, fill="#2a3a30", outline="")
 
-        if self.player_img:
-            self.c.create_image(x, y + PLAYER_H // 2, image=self.player_img, anchor="center")
-        else:
-            # Запасной персонаж
-            self.c.create_oval(x - 24, y, x + 24, y + 48, fill="#ef5148", outline="#a92e35", width=3)
-            self.c.create_oval(x - 12, y + 10, x - 2, y + 22, fill="white", outline="")
-            self.c.create_oval(x + 2, y + 10, x + 12, y + 22, fill="white", outline="")
+        # Тело
+        self.c.create_oval(x - R + 3, y - R + 6, x + R + 3, y + R + 6, fill=s["dark"], outline="")
+        self.c.create_oval(x - R, y - R, x + R, y + R, fill=s["body"], outline=s["dark"], width=3)
 
-    def draw_hud(self):
-        self.draw_rect(14, 12, 340, 78, "#0f2438", "#7ec8d8", 2)
-        self.draw_text(28, 30, "ЧЕКУШКА 2D", 14, "#ffe27a", anchor="w")
-        self.draw_text(28, 55, f"Монеты: {len(self.got_coins)}/{len(self.level['coins'])}", 12, "#e8f4f8", anchor="w")
+        # Блик
+        self.c.create_oval(x - 15, y - 17, x - 2, y - 7, fill=s["shine"], outline="")
 
-        self.draw_rect(400, 20, 720, 36, "#1a3a50")
+        # Глаза
+        self.c.create_oval(x - 13, y - 9, x - 3, y + 4, fill="white", outline="")
+        self.c.create_oval(x + 3, y - 9, x + 13, y + 4, fill="white", outline="")
+        self.c.create_oval(x - 9, y - 4, x - 5, y + 2, fill="#222333", outline="")
+        self.c.create_oval(x + 7, y - 4, x + 11, y + 2, fill="#222333", outline="")
+
+        # Улыбка
+        self.c.create_arc(x - 9, y + 2, x + 10, y + 16, start=200, extent=140,
+                          style=tk.ARC, outline=s["dark"], width=2)
+
+    def hud(self):
+        # Фон
+        self.rect(14, 12, 370, 88, "#0f2438", "#7ec8d8", 2)
+        self.txt(30, 32, "ЧЕКУШКА 2D", 15, "#ffe27a", anchor="w")
+        self.txt(30, 62, f"Бутылки {len(self.got_b)}/{len(self.level['bottles'])}   ·   Монеты {len(self.got_c)}/{len(self.level['coins'])}",
+                 12, "#e8f4f8", anchor="w")
+
+        # Прогресс
+        self.rect(410, 22, 700, 38, "#1a3a50")
         progress = self.x / self.level["end"]
-        self.draw_rect(400, 20, 400 + 320 * progress, 36, "#ffdc58")
-        self.draw_text(560, 50, self.level["name"].upper(), 10, "#ffffff")
+        self.rect(410, 22, 410 + 290 * progress, 38, "#ffdc58")
+        self.txt(555, 52, self.level["name"].upper(), 10, "#ffffff")
 
-        self.draw_rect(860, 14, 1082, 56, "#0f2438", "#7ec8d8", 2)
-        self.draw_text(970, 35, f"★  {self.total_coins}", 15, "#ffe27a")
+        # Монеты
+        self.rect(860, 14, 1082, 58, "#0f2438", "#7ec8d8", 2)
+        self.txt(970, 36, f"★  {self.total_coins}", 16, "#ffe27a")
 
-    def draw_particles(self):
+    def particles_draw(self):
         for x, y, vx, vy, life, col, size in self.particles:
             sx = x - self.camera
-            if -30 < sx < W + 30:
-                r = max(1.5, size * life / 0.55)
-                self.c.create_oval(sx - r, y - r, sx + r, y + r, fill=col, outline="")
+            if -20 < sx < W + 20:
+                rr = max(1.5, size * life / 0.6)
+                self.c.create_oval(sx - rr, y - rr, sx + rr, y + rr, fill=col, outline="")
 
-    def draw_panel(self, title, subtitle):
-        self.draw_rect(0, 0, W, H, "#0c1624")
-        for x, y, r in [(80, 70, 100), (1020, 560, 170), (940, 60, 45)]:
-            self.c.create_oval(x - r, y - r, x + r, y + r, fill="#152a40", outline="")
-        self.draw_text(W / 2, 110, title, 38, "#ffe27a")
-        self.draw_text(W / 2, 160, subtitle, 14, "#c0dce8", False)
+    def panel(self, title, sub):
+        self.rect(0, 0, W, H, "#0d1a2c")
+        # Декоративные круги
+        for x, y, r, col in [(90, 80, 110, "#152a42"), (1020, 560, 180, "#152a42"),
+                             (950, 70, 50, "#1a3550")]:
+            self.c.create_oval(x - r, y - r, x + r, y + r, fill=col, outline="")
+        self.txt(W/2, 115, title, 40, "#ffe27a")
+        self.txt(W/2, 168, sub, 14, "#c8e0ec", False)
+
+    def check_updates(self):
+        try:
+            req = urllib.request.Request(VERSION_URL, headers={"User-Agent": "ChekushkaAdventure"})
+            with urllib.request.urlopen(req, timeout=12) as response:
+                remote = json.loads(response.read().decode("utf-8"))
+            latest = str(remote.get("version", ""))
+            if not latest:
+                raise ValueError("В version.json не указана версия")
+            if latest == APP_VERSION:
+                messagebox.showinfo("Обновления", f"У тебя последняя версия: {APP_VERSION}")
+                return
+            if not messagebox.askyesno("Доступно обновление",
+                                       f"Установлена версия {APP_VERSION}.\nНовая версия: {latest}.\nСкачать и установить?"):
+                return
+            self.download_update()
+        except Exception as e:
+            messagebox.showerror("Ошибка обновления",
+                                 "Не удалось проверить обновления.\nПроверь интернет и GitHub.\n\n" + str(e))
+
+    def download_update(self):
+        try:
+            req = urllib.request.Request(GAME_URL, headers={"User-Agent": "ChekushkaAdventure"})
+            with urllib.request.urlopen(req, timeout=30) as response:
+                new_code = response.read()
+            if len(new_code) < 1000:
+                raise ValueError("Файл обновления пустой или повреждён")
+            folder = os.path.dirname(os.path.abspath(__file__))
+            temp_file = os.path.join(folder, "chekushka_adventure.new.py")
+            with open(temp_file, "wb") as f:
+                f.write(new_code)
+
+            current = os.path.basename(__file__)
+            bat_file = os.path.join(folder, "apply_update.bat")
+            with open(bat_file, "w", encoding="utf-8") as f:
+                f.write("@echo off\r\n")
+                f.write("chcp 65001 >nul\r\n")
+                f.write("timeout /t 2 /nobreak >nul\r\n")
+                f.write(f'copy /Y "chekushka_adventure.new.py" "{current}" >nul\r\n')
+                f.write(f'"{sys.executable}" "{current}"\r\n')
+                f.write('del "%~f0"\r\n')
+
+            messagebox.showinfo("Обновление", "Обновление скачано. Игра перезапустится.")
+            subprocess.Popen(["cmd", "/c", bat_file], cwd=folder,
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            self.root.destroy()
+        except Exception as e:
+            messagebox.showerror("Ошибка", "Не удалось установить обновление.\n\n" + str(e))
 
     def draw_menu(self):
-        self.draw_panel("ЧЕКУШКА 2D", "Платформер с котом")
+        self.panel("ЧЕКУШКА 2D", "Маленький герой. Большое приключение.")
         self.buttons = []
-        self.button(W / 2, 280, 300, 54, "ИГРАТЬ", lambda: setattr(self, "screen", "levels"))
-        self.button(W / 2, 360, 300, 48, "ВЫХОД", self.root.destroy)
-        self.draw_text(W / 2, 480, "A / D  или  ← / →  — бег     SPACE — прыжок", 13, "#a8c8d8", False)
-        self.draw_text(W / 2, 510, "P или ESC — пауза", 12, "#80a0b0", False)
-        self.draw_text(W / 2, 560, f"Версия {APP_VERSION}", 11, "#5a7a90", False)
+        self.button(W/2, 275, 310, 56, "ИГРАТЬ", lambda: setattr(self, "screen", "levels"))
+        self.button(W/2, 350, 310, 56, "ВЫБРАТЬ СКИН",
+                    lambda: setattr(self, "screen", "skins"),
+                    f"Монет: {self.total_coins}")
+        self.button(W/2, 425, 310, 48, "ПРОВЕРИТЬ ОБНОВЛЕНИЯ", self.check_updates)
+        self.txt(W/2, 510, "A / D  или  ← / →  — движение     SPACE — прыжок", 13, "#b8d0dc", False)
+        self.txt(W/2, 535, "Собирай монеты, обходи шипы и побеждай слизней!", 12, "#8aa8b8", False)
+        self.txt(W/2, 570, f"Версия {APP_VERSION}", 11, "#5a7a90", False)
 
     def draw_levels(self):
-        self.draw_panel("ВЫБОР УРОВНЯ", "Пройди уровень, чтобы открыть следующий")
+        self.panel("ВЫБОР УРОВНЯ", "Пройди уровень, чтобы открыть следующий")
         self.buttons = []
-        for i, lvl in enumerate(LEVELS):
+        for i, l in enumerate(LEVELS):
             col = i % 2
             row = i // 2
-            x = W / 2 + (col - 0.5) * 340
-            y = 250 + row * 85
+            x = W/2 + (col - 0.5) * 320
+            y = 260 + row * 100
             locked = i + 1 > self.unlocked
-            self.button(x, y, 300, 62,
-                        ("🔒  " if locked else f"{i+1:02d}  ") + lvl["name"],
+            self.button(x, y, 280, 70,
+                        ("🔒  " if locked else f"{i+1:02d}  ") + l["name"],
                         lambda j=i: self.start_level(j),
-                        "Закрыт" if locked else lvl["subtitle"],
+                        "Закрыт" if locked else l["subtitle"],
                         locked)
-        self.button(W / 2, 580, 200, 44, "НАЗАД", lambda: setattr(self, "screen", "menu"))
+        self.button(W/2, 545, 220, 46, "НАЗАД", lambda: setattr(self, "screen", "menu"))
+
+    def draw_skins(self):
+        self.panel("ВЫБОР СКИНА", f"Твои монеты: {self.total_coins}")
+        self.buttons = []
+        if not hasattr(self, "owned_skins"):
+            self.owned_skins = {0}
+
+        for i, s in enumerate(SKINS):
+            col = i % 3
+            row = i // 3
+            x = 250 + col * 300
+            y = 270 + row * 140
+
+            # Превью скина
+            self.c.create_oval(x - 32, y - 38, x + 32, y + 26, fill=s["body"], outline=s["shine"], width=3)
+            self.c.create_oval(x - 15, y - 18, x - 5, y - 5, fill="white", outline="")
+            self.c.create_oval(x + 5, y - 18, x + 15, y - 5, fill="white", outline="")
+
+            owned = (i in self.owned_skins) or (s["price"] == 0)
+            if i in self.owned_skins:
+                owned = True
+
+            if i == self.skin_index:
+                label = "ВЫБРАН"
+            elif owned:
+                label = "ВЫБРАТЬ"
+            else:
+                label = f"КУПИТЬ • {s['price']} ★"
+
+            def choose(j=i):
+                ss = SKINS[j]
+                if j not in self.owned_skins:
+                    if self.total_coins < ss["price"]:
+                        return
+                    self.total_coins -= ss["price"]
+                    self.owned_skins.add(j)
+                    self.save()
+                self.skin_index = j
+                self.save()
+
+            can_buy = owned or self.total_coins >= s["price"]
+            self.button(x, y + 50, 190, 40, label, choose, s["name"], not can_buy)
+
+        self.button(W/2, 545, 220, 46, "НАЗАД", lambda: setattr(self, "screen", "menu"))
 
     def draw(self):
         self.c.delete("all")
         self.buttons = []
 
         if self.screen in ("play", "pause", "win", "dead"):
-            self.draw_sky()
-            self.draw_world()
-            self.draw_particles()
-            self.draw_player()
-            self.draw_hud()
+            self.sky()
+            self.world()
+            self.particles_draw()
+            self.player()
+            self.hud()
 
         if self.screen == "menu":
             self.draw_menu()
         elif self.screen == "levels":
             self.draw_levels()
+        elif self.screen == "skins":
+            self.draw_skins()
         elif self.screen == "pause":
-            self.draw_rect(0, 0, W, H, "#0c1624")
-            self.draw_text(W / 2, 220, "ПАУЗА", 40, "#ffe27a")
-            self.draw_text(W / 2, 280, "Нажми P или ESC, чтобы продолжить", 14, "#d0e8f0", False)
+            self.rect(0, 0, W, H, "#0d1a2c")
+            self.txt(W/2, 220, "ПАУЗА", 42, "#ffe27a")
+            self.txt(W/2, 285, "Нажми P или ESC, чтобы продолжить", 15, "#d0e8f0", False)
             self.buttons = []
-            self.button(W / 2, 370, 230, 50, "В МЕНЮ", lambda: setattr(self, "screen", "menu"))
+            self.button(W/2, 370, 240, 52, "В МЕНЮ", lambda: setattr(self, "screen", "menu"))
         elif self.screen == "dead":
-            self.draw_rect(0, 0, W, H, "#0c1624")
-            self.draw_text(W / 2, 220, "ОЙ!", 40, "#ff8a78")
-            self.draw_text(W / 2, 280, "Попробуй ещё раз", 15, "#d0e8f0", False)
+            self.rect(0, 0, W, H, "#0d1a2c")
+            self.txt(W/2, 220, "ОЙ! ПОПАЛСЯ!", 40, "#ff8a78")
+            self.txt(W/2, 285, "Попробуй ещё раз — у тебя получится", 15, "#d0e8f0", False)
             self.buttons = []
-            self.button(W / 2, 370, 240, 52, "ПОВТОРИТЬ", lambda: self.start_level(self.level_index))
-            self.button(W / 2, 440, 240, 46, "К УРОВНЯМ", lambda: setattr(self, "screen", "levels"))
+            self.button(W/2, 370, 250, 54, "ПОВТОРИТЬ", lambda: self.start_level(self.level_index))
+            self.button(W/2, 445, 250, 48, "К УРОВНЯМ", lambda: setattr(self, "screen", "levels"))
         elif self.screen == "win":
-            self.draw_rect(0, 0, W, H, "#0c1624")
-            self.draw_text(W / 2, 190, "УРОВЕНЬ ПРОЙДЕН!", 36, "#ffe27a")
-            self.draw_text(W / 2, 250, f"Монеты: {len(self.got_coins)}/{len(self.level['coins'])}", 16, "#ffffff", False)
+            self.rect(0, 0, W, H, "#0d1a2c")
+            self.txt(W/2, 195, "УРОВЕНЬ ПРОЙДЕН!", 40, "#ffe27a")
+            self.txt(W/2, 265,
+                     f"Бутылки: {len(self.got_b)}/{len(self.level['bottles'])}    Монеты: {len(self.got_c)}/{len(self.level['coins'])}",
+                     16, "#ffffff", False)
             self.buttons = []
             if self.level_index < len(LEVELS) - 1:
-                self.button(W / 2, 350, 280, 52, "СЛЕДУЮЩИЙ УРОВЕНЬ",
+                self.button(W/2, 360, 280, 54, "СЛЕДУЮЩИЙ УРОВЕНЬ",
                             lambda: self.start_level(self.level_index + 1))
-            self.button(W / 2, 420, 280, 46, "К УРОВНЯМ", lambda: setattr(self, "screen", "levels"))
+            self.button(W/2, 435, 280, 48, "К УРОВНЯМ", lambda: setattr(self, "screen", "levels"))
 
-        self.c.bind("<Button-1>", self.on_click)
+        self.c.bind("<Button-1>", self.click)
 
     def loop(self):
         now = time.perf_counter()
-        dt = min(now - self.last, 0.033)
+        dt = min(now - self.last, 0.035)
         self.last = now
         self.update(dt)
         self.draw()
         self.root.after(16, self.loop)
-
-# ==================== ЗАПУСК ====================
 
 if __name__ == "__main__":
     root = tk.Tk()
